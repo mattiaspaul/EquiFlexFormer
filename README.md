@@ -2,6 +2,11 @@
 MELBA 2025 submission
 ## Look, No Convs! Equivariance for Vision Transformers in Medical Image Segmentation
 
+### Model Architecture for Equivariant Vision Transformers
+![Model Architecture](figures/melba25_method.png)
+
+### Details of Local Attention implementation with Block Masks
+![Segmentation Results](figures/melba25_method2.png)
 
 ## ✅ Project Checklist
 
@@ -10,6 +15,31 @@ MELBA 2025 submission
 - [x] Implementation of Equivariant Network
 - [ ] Comparison with CNNs
 - [ ] Upload trained models
+
+## Implementation of Reflection Equivariance
+```
+class FlipModel4(nn.Module):
+    def __init__(self,model1,HW) -> None:
+        super().__init__()
+        self.model1 = model1
+        self.HW = HW
+    def forward(self, x,interpolate_pos_encoding=True):
+        HW = self.HW
+        embed = self.model1.encoder.layer[0](self.model1.embeddings(x,interpolate_pos_encoding=interpolate_pos_encoding))[0]
+        for i in range(1,4):
+            embed = self.model1.encoder.layer[i](embed)[0]
+        for ff in zip([[2],[3],[2,3]],[[1],[2],[1,2]]):
+            embed2 = self.model1.encoder.layer[0](self.model1.embeddings(x.flip(ff[0]),interpolate_pos_encoding=interpolate_pos_encoding))[0]
+            embed2[:,1:] = embed2[:,1:].unflatten(1,(HW,HW)).flip(ff[1]).flatten(1,2)
+            for i in range(1,4):
+                embed = self.model1.encoder.layer[i](embed)[0]
+            embed = torch.maximum(embed,embed2)
+        for i in range(4,len(self.model1.encoder.layer)):
+            embed = self.model1.encoder.layer[i](embed)[0]
+        y = self.model1.layernorm(embed)[:,1:].permute(0,2,1).unflatten(2,(HW,HW))     
+        return y
+```
+
 
 ## Abstract 
 
